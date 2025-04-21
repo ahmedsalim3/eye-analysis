@@ -1,0 +1,5 @@
+tensorflow>=2.10
+opencv-contrib-python>=4.10.0.84
+opencv-python>=4.5.5
+dlib>=19.24.6
+numpy>=1.19.5
