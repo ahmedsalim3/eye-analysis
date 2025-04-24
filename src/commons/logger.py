@@ -22,34 +22,54 @@ class Logger:
     def __init__(self):
         if not hasattr(self, "_singleton_initialized"):
             self._singleton_initialized = True  # to prevent multiple initializations
-            log_level = os.environ.get("DEEPFACE_LOG_LEVEL", str(logging.INFO))
+            log_level = os.environ.get("LOG_LEVEL", str(logging.INFO))
             try:
                 self.log_level = int(log_level)
             except Exception as err:
                 self.dump_log(
-                    f"Exception while parsing $DEEPFACE_LOG_LEVEL."
+                    f"Exception while parsing $LOG_LEVEL."
                     f"Expected int but it is {log_level} ({str(err)})."
                     "Setting app log level to info."
                 )
                 self.log_level = logging.INFO
 
     def info(self, message):
+        """
+        Set log level to 20 to see info messages
+        export LOG_LEVEL=20
+        """
         if self.log_level <= logging.INFO:
             self.dump_log(f"{message}")
 
     def debug(self, message):
+        """
+        Set log level to 10 to see debug messages
+        export LOG_LEVEL=10
+        """
         if self.log_level <= logging.DEBUG:
             self.dump_log(f"🕷️ {message}")
 
     def warn(self, message):
+        """
+        Set log level to 30 to see warning messages
+        export LOG_LEVEL=30
+        """
         if self.log_level <= logging.WARNING:
             self.dump_log(f"⚠️ {message}")
 
     def error(self, message):
+        """
+        Set log level to 40 to see error messages
+        export LOG_LEVEL=40
+        """
         if self.log_level <= logging.ERROR:
             self.dump_log(f"🔴 {message}")
 
     def critical(self, message):
+        """
+        Set log level to 50 to see critical messages
+        export LOG_LEVEL=50
+        """
         if self.log_level <= logging.CRITICAL:
             self.dump_log(f"💥 {message}")
 
