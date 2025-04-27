@@ -3,7 +3,7 @@ import bz2
 import patoolib
 import gdown
 
-from .logger import Logger
+from src.commons.logger import Logger
 
 logger = Logger()
 

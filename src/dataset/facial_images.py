@@ -5,11 +5,12 @@ import cv2
 import dlib
 from tqdm import tqdm
 
-from ..commons.logger import Logger
-from ..utilities.data_utils import get_dlib_points, get_left_key_points, get_right_key_points, get_attributes_wrt_local_frame
-from ..commons.constant import ROOT_DIR
-from ..commons import folder_utils
-
+from src.commons.logger import Logger
+from src.utilities.data_utils import get_dlib_points, get_left_key_points, get_right_key_points, get_attributes_wrt_local_frame
+from src.commons.constant import ROOT_DIR
+from src.commons import folder_utils
+from src.commons.get_weights import download_shape_predictor
+from src.utilities.vis_utils import debug_eye_extraction
 
 class FacialImageDataset:
     """
@@ -54,11 +55,10 @@ class FacialImageDataset:
     ```
     """
     
-    # URLs for dataset and model resources
-    SHAPE_PREDICTOR_URL = "http://dlib.net/files/shape_predictor_68_face_landmarks.dat.bz2"
+    # URLs for dataset
     DATASET_URL = "https://drive.usercontent.google.com/u/0/uc?id=1FcRw251WxGKwT6Dt9ncP-1TbW6h445W5&export=download"
     
-    def _init_(self):
+    def __init__(self):
         """Initialize the processor with configuration settings and paths."""
         self.logger = Logger()
         folder_utils.initialize_folder(ROOT_DIR)
@@ -104,12 +104,7 @@ class FacialImageDataset:
         
         self.logger.info(f"Dataset: {self.dataset_name}")
         
-        # Download and load the facial landmark predictor
-        shape_predictor_path = folder_utils.download_weights(
-            file_name="shape_predictor_68_face_landmarks.dat",
-            source_url=self.SHAPE_PREDICTOR_URL,
-            home_path=ROOT_DIR
-        )
+        shape_predictor_path = download_shape_predictor()
         
         self.predictor = dlib.shape_predictor(shape_predictor_path)
     
@@ -174,92 +169,6 @@ class FacialImageDataset:
             self.logger.error(f"Error processing {image_path}: {e}")
             return None
     
-    def _debug_eye_extraction(self, image_path, eye_coords):
-        """
-        Debug visualization for eye feature extraction.
-        """
-        orig_image = cv2.imread(image_path)
-        gray_image = cv2.cvtColor(orig_image, cv2.COLOR_BGR2GRAY)
-        
-        x1, y1, x2, y2 = eye_coords
-        
-        # Create a rectangle around the eye region with padding
-        rect = dlib.rectangle(
-            left=max(0, x1-10), 
-            top=max(0, y1-10), 
-            right=min(gray_image.shape[1], x2+10), 
-            bottom=min(gray_image.shape[0], y2+10)
-        )
-        
-        # Create debug image with eye region rectangle
-        debug_img = orig_image.copy()
-        cv2.rectangle(debug_img, (rect.left(), rect.top()), (rect.right(), rect.bottom()), (0, 255, 0), 2)
-        cv2.circle(debug_img, (x1, y1), radius=4, color=(255, 0, 0), thickness=-1)
-        cv2.circle(debug_img, (x2, y2), radius=4, color=(255, 0, 0), thickness=-1)
-        cv2.imshow("Eye Region", debug_img)
-        if cv2.waitKey(0) & 0xFF == ord('q'): 
-            cv2.destroyWindow("Eye Region")
-        
-        try:
-            # Extract and visualize landmarks
-            landmarks = get_dlib_points(gray_image, self.predictor, rect)
-            
-            landmarks_img = orig_image.copy()
-            for i, point in enumerate(landmarks):
-                cv2.circle(landmarks_img, (int(point[0]), int(point[1])), 2, (0, 0, 255), -1)
-            cv2.imshow("Landmarks", landmarks_img)
-            if cv2.waitKey(0) & 0xFF == ord('q'): 
-                cv2.destroyWindow("Landmarks")
-            
-            # Extract and visualize eye key points
-            left_key_points = get_left_key_points(landmarks)
-            right_key_points = get_right_key_points(landmarks)
-            
-            eye_points_img = orig_image.copy()
-            for points, color in [(left_key_points, (0, 255, 0)), (right_key_points, (0, 255, 0))]:
-                for point in points:
-                    cv2.circle(eye_points_img, (int(point[0]), int(point[1])), 3, color, -1)
-            cv2.imshow("Eye Key Points", eye_points_img)
-            if cv2.waitKey(0) & 0xFF == ord('q'): 
-                cv2.destroyWindow("Eye Key Points")
-            
-            # Extract and visualize eye features
-            features = self.extract_eye_features(image_path, eye_coords)
-            if features:
-                # Left eye visualization
-                left_eye = features['left'][0] * 255
-                left_eye = left_eye.astype(np.uint8).squeeze()
-                cv2.imshow("Left Eye Features", left_eye)
-                cv2.circle(orig_image, (x1, y1), radius=4, color=(255, 0, 0), thickness=-1)
-                if cv2.waitKey(0) & 0xFF == ord('q'): 
-                    cv2.destroyWindow("Left Eye Features")
-
-                # Right eye visualization
-                right_eye = features['right'][0] * 255
-                right_eye = right_eye.astype(np.uint8).squeeze()
-                cv2.imshow("Right Eye Features", right_eye)
-                cv2.circle(orig_image, (x2, y2), radius=4, color=(0, 0, 255), thickness=-1)
-                if cv2.waitKey(0) & 0xFF == ord('q'): 
-                    cv2.destroyWindow("Right Eye Features")
-                self.logger.info("Debug visualizations displayed.")
-                
-                cv2.waitKey(0)
-                cv2.destroyAllWindows()
-                
-                return {
-                    'original': debug_img,
-                    'landmarks': landmarks_img,
-                    'eye_points': eye_points_img,
-                    'left_eye': left_eye,
-                    'right_eye': right_eye
-                }
-
-        except Exception as e:
-            self.logger.error(f"Error in _debug_eye_extraction: {e}")
-            cv2.destroyAllWindows()
-        
-        return None
-    
     def _process_data(self, debug_mode=False):
         """
         Process the dataset to extract features for both open and closed eyes.
@@ -283,7 +192,7 @@ class FacialImageDataset:
                 
                 # Debug the first closed eye image if debug mode is enabled
                 if debug_mode and len(eye_images) == 0:
-                    _ = self._debug_eye_extraction(image_path, closed_coords[filename])
+                    _ = debug_eye_extraction(image_path, closed_coords[filename], self.predictor, features)
                 
                 if features:
                     # Add left eye features
@@ -313,7 +222,7 @@ class FacialImageDataset:
                 
                 # Debug the first open eye image if debug mode is enabled
                 if debug_mode and len(labels) > 0 and labels.count(1) == 0:
-                    _ = self._debug_eye_extraction(image_path, open_coords[filename])
+                    _ = debug_eye_extraction(image_path, open_coords[filename], self.predictor, features)
                 
                 if features:
                     # Add left eye features
@@ -372,6 +281,8 @@ class FacialImageDataset:
         X_distances = np.load(os.path.join(self.process_data_dir, "X_distances.npy"))
         X_angles = np.load(os.path.join(self.process_data_dir, "X_angles.npy"))
         y = np.load(os.path.join(self.process_data_dir, "y.npy"))
+
+        self.logger.info(f"Loaded data from {self.process_data_dir}")
             
         return X_eye_images, X_keypoints, X_distances, X_angles, y
     
@@ -380,7 +291,7 @@ class FacialImageDataset:
         Process the dataset and save the resulting features.
         
         Args:
-            debug_mode: Whether to show debug visualizations
+            debug_mode: show visualizations
         """
         self.logger.info("Starting dataset processing...")
         
@@ -400,18 +311,11 @@ class FacialImageDataset:
         return X_eye_images, X_keypoints, X_distances, X_angles, y
     
     def load_data(self):
-        """
-        Load the processed data from disk.
-        """
         return self._load_data()
 
-def main():
-    """
-    Main entry point for the eye dataset processor.
-    """
+if __name__ == "__main__":
     processor = FacialImageDataset()
-    processor.process(debug_mode=False)
-
-
-if __name__ == "_main_":
-    main()
+    try:
+        X_eye_images, X_keypoints, X_distances, X_angles, y = processor.load_data()
+    except Exception:
+        processor.process(debug_mode=False)
