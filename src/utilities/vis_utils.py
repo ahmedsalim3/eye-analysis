@@ -1,11 +1,54 @@
+import os
 import cv2
 import dlib
 import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 from src.utilities.data_utils import get_dlib_points, get_left_key_points, get_right_key_points
-from src.commons import logger
+from src.commons import logger, constant
 
 logger = logger.Logger()
+
+def plot_training_history(history, show=False):
+    sns.set_style("darkgrid")
+    colors = {
+        'train': '#13034d',
+        'val': '#084d02'
+    }
+
+    epochs = range(1, len(history.history['loss']) + 1)
+
+    metrics = {
+        "Loss": ('loss', 'val_loss'),
+        "Accuracy": ('accuracy', 'val_accuracy')
+    }
+
+    fig, axs = plt.subplots(1, 2, figsize=(12, 6), constrained_layout=True)
+
+    def plot_metric(ax, train_data, val_data, title, ylabel, ylim=None):
+        ax.plot(epochs, train_data, marker='o', markersize=6, linewidth=2, color=colors['train'], label="Training")
+        ax.plot(epochs, val_data, marker='s', markersize=6, linewidth=2, color=colors['val'], label="Validation")
+        ax.set_title(title, fontsize=14, fontweight='bold')
+        ax.set_xlabel("Epoch", fontsize=12)
+        ax.set_ylabel(ylabel, fontsize=12)
+        if ylim:
+            ax.set_ylim(ylim)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.legend(loc='upper left', frameon=True, fontsize=11)
+        ax.grid(True, linestyle='--', alpha=0.6)
+
+    for ax, (title, (train_key, val_key)) in zip(axs.flat, metrics.items()):
+        plot_metric(ax, history.history[train_key], history.history[val_key], title, title, ylim=(0, 1) if 'Accuracy' in title else None)
+    
+    os.makedirs(os.path.join(constant.ROOT_DIR, "results"), exist_ok=True)
+    output_path = "results/training_history.png"
+    plt.savefig(output_path, format='png', dpi=300, bbox_inches='tight')
+    
+    if show:
+        plt.show()
+
 
 def debug_eye_extraction(image_path, eye_coords, predictor, features):
     """

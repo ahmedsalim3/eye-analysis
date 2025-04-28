@@ -250,7 +250,13 @@ class FacialImageDataset:
         X_angles = np.array([a.reshape(1, 11, 1) for a in angles]).astype(np.float32) / np.pi  # Normalize by pi
         y = np.array(labels)
         
-        return X_eye_images, X_keypoints, X_distances, X_angles, y
+        return {
+            "X_eye_images": X_eye_images,
+            "X_keypoints": X_keypoints,
+            "X_distances": X_distances,
+            "X_angles": X_angles,
+            "y": y
+        }
     
     def _save_data(self, X_eye_images, X_keypoints, X_distances, X_angles, y):
         """
@@ -284,7 +290,13 @@ class FacialImageDataset:
 
         self.logger.info(f"Loaded data from {self.process_data_dir}")
             
-        return X_eye_images, X_keypoints, X_distances, X_angles, y
+        return {
+            "X_eye_images": X_eye_images,
+            "X_keypoints": X_keypoints,
+            "X_distances": X_distances,
+            "X_angles": X_angles,
+            "y": y
+        }
     
     def process(self, debug_mode=False, save_data=True):
         """
@@ -296,19 +308,26 @@ class FacialImageDataset:
         self.logger.info("Starting dataset processing...")
         
         # Process the dataset
-        X_eye_images, X_keypoints, X_distances, X_angles, y = self._process_data(debug_mode=debug_mode)
+        data = self._process_data(debug_mode=debug_mode)
         
         # Log dataset statistics
         self.logger.info("Dataset statistics:")
-        self.logger.info(f"Total samples: {len(y)}")
-        self.logger.info(f"Open eyes: {np.sum(y == 1)}")
-        self.logger.info(f"Closed eyes: {np.sum(y == 0)}")
+        self.logger.info(f"Total samples: {len(data['y'])}")
+        self.logger.info(f"Open eyes: {np.sum(data['y'] == 1)}")
+        self.logger.info(f"Closed eyes: {np.sum(data['y'] == 0)}")
+
         
         # Save the processed data
         if save_data:
-            self._save_data(X_eye_images, X_keypoints, X_distances, X_angles, y)
+            self._save_data(
+                data["X_eye_images"],
+                data["X_keypoints"],
+                data["X_distances"],
+                data["X_angles"],
+                data["y"]
+            )
 
-        return X_eye_images, X_keypoints, X_distances, X_angles, y
+        return data
     
     def load_data(self):
         return self._load_data()
@@ -316,6 +335,6 @@ class FacialImageDataset:
 if __name__ == "__main__":
     processor = FacialImageDataset()
     try:
-        X_eye_images, X_keypoints, X_distances, X_angles, y = processor.load_data()
+        data = processor.load_data()
     except Exception:
-        processor.process(debug_mode=False)
+        data = processor.load_data()
